@@ -1,21 +1,18 @@
-FROM node:22-alpine AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Copy package files first for better caching
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm ci --maxsockets 5
+RUN npm ci --loglevel verbose 2>&1
 
-# Copy source code
 COPY . .
 
-# Build Medusa
 RUN npm run build
 
-# Production image
-FROM node:22-alpine
+FROM node:22-slim
 
 WORKDIR /app
 
