@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt
 
 COPY package.json package-lock.json ./
 
-RUN npm ci --loglevel verbose 2>&1
+RUN npm ci
 
 COPY . .
 
