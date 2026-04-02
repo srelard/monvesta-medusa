@@ -13,7 +13,7 @@ COPY . .
 RUN npm run build
 
 # Install server dependencies during build
-RUN cd .medusa/server && npm install
+RUN cd .medusa/server && npm install --legacy-peer-deps || true
 
 FROM node:22-slim
 
