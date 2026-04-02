@@ -10,8 +10,6 @@ RUN npm ci
 
 COPY . .
 
-RUN npm run build
-
 EXPOSE 9000
 
-CMD ["sh", "-c", "cd .medusa/server && npm install --legacy-peer-deps && npx medusa db:migrate && npm run start"]
+CMD ["sh", "-c", "npm run build && cd .medusa/server && npm install --legacy-peer-deps && npx medusa db:migrate && npm run start"]
