@@ -32,5 +32,11 @@ module.exports = defineConfig({
       resolve: "@medusajs/medusa/workflow-engine-redis",
       options: { redis: { url: process.env.REDIS_URL } },
     },
+    {
+      resolve: "@medusajs/medusa/payment-stripe",
+      options: {
+        apiKey: process.env.STRIPE_API_KEY,
+      },
+    },
   ],
 })
