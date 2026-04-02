@@ -12,6 +12,9 @@ COPY . .
 
 RUN npm run build
 
+# Install server dependencies during build
+RUN cd .medusa/server && npm install
+
 FROM node:22-slim
 
 WORKDIR /app
@@ -22,4 +25,4 @@ COPY --from=builder /app/package.json ./package.json
 
 EXPOSE 9000
 
-CMD ["sh", "-c", "cd .medusa/server && npm install && npm run predeploy && npm run start"]
+CMD ["sh", "-c", "cd .medusa/server && npm run predeploy && npm run start"]
