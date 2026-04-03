@@ -4,6 +4,25 @@ loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
 const modules: any[] = []
 
+// Redis modules for production
+if (process.env.REDIS_URL) {
+  modules.push(
+    {
+      resolve: "@medusajs/medusa/cache-redis",
+      options: { redisUrl: process.env.REDIS_URL },
+    },
+    {
+      resolve: "@medusajs/medusa/event-bus-redis",
+      options: { redisUrl: process.env.REDIS_URL },
+    },
+    {
+      resolve: "@medusajs/medusa/workflow-engine-redis",
+      options: { redisUrl: process.env.REDIS_URL },
+    },
+  )
+}
+
+// Stripe payment provider
 if (process.env.STRIPE_API_KEY) {
   modules.push({
     resolve: "@medusajs/medusa/payment",
