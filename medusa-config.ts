@@ -4,20 +4,52 @@ loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
 const modules: any[] = []
 
-// Redis modules for production
+// Production Redis modules
 if (process.env.REDIS_URL) {
   modules.push(
     {
-      resolve: "@medusajs/medusa/cache-redis",
-      options: { redisUrl: process.env.REDIS_URL },
+      resolve: "@medusajs/medusa/caching",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/caching-redis",
+            id: "caching-redis",
+            is_default: true,
+            options: {
+              redisUrl: process.env.REDIS_URL,
+            },
+          },
+        ],
+      },
     },
     {
       resolve: "@medusajs/medusa/event-bus-redis",
-      options: { redisUrl: process.env.REDIS_URL },
+      options: {
+        redisUrl: process.env.REDIS_URL,
+      },
     },
     {
       resolve: "@medusajs/medusa/workflow-engine-redis",
-      options: { redisUrl: process.env.REDIS_URL },
+      options: {
+        redis: {
+          redisUrl: process.env.REDIS_URL,
+        },
+      },
+    },
+    {
+      resolve: "@medusajs/medusa/locking",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/locking-redis",
+            id: "locking-redis",
+            is_default: true,
+            options: {
+              redisUrl: process.env.REDIS_URL,
+            },
+          },
+        ],
+      },
     },
   )
 }
