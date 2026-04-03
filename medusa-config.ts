@@ -2,20 +2,25 @@ import { loadEnv, defineConfig } from '@medusajs/framework/utils'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
-const modules: any[] = [
-  {
-    resolve: "@medusajs/medusa/cache-redis",
-    options: { redisUrl: process.env.REDIS_URL },
-  },
-  {
-    resolve: "@medusajs/medusa/event-bus-redis",
-    options: { redisUrl: process.env.REDIS_URL },
-  },
-  {
-    resolve: "@medusajs/medusa/workflow-engine-redis",
-    options: { redis: { url: process.env.REDIS_URL } },
-  },
-]
+const modules: any[] = []
+
+// Only add Redis modules if REDIS_URL is configured
+if (process.env.REDIS_URL) {
+  modules.push(
+    {
+      resolve: "@medusajs/medusa/cache-redis",
+      options: { redisUrl: process.env.REDIS_URL },
+    },
+    {
+      resolve: "@medusajs/medusa/event-bus-redis",
+      options: { redisUrl: process.env.REDIS_URL },
+    },
+    {
+      resolve: "@medusajs/medusa/workflow-engine-redis",
+      options: { redis: { url: process.env.REDIS_URL } },
+    },
+  )
+}
 
 // Only add Stripe if API key is configured
 if (process.env.STRIPE_API_KEY) {
@@ -44,5 +49,5 @@ module.exports = defineConfig({
     disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
     backendUrl: process.env.MEDUSA_BACKEND_URL || "http://localhost:9000",
   },
-  modules,
+  modules: modules.length > 0 ? modules : undefined,
 })
