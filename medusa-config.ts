@@ -19,4 +19,12 @@ module.exports = defineConfig({
     disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
     backendUrl: process.env.MEDUSA_BACKEND_URL || "http://localhost:9000",
   },
+  modules: process.env.STRIPE_API_KEY ? [
+    {
+      resolve: "@medusajs/medusa/payment-stripe",
+      options: {
+        apiKey: process.env.STRIPE_API_KEY,
+      },
+    },
+  ] : undefined,
 })
