@@ -2,6 +2,25 @@ import { loadEnv, defineConfig } from '@medusajs/framework/utils'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
+const modules: any[] = []
+
+if (process.env.STRIPE_API_KEY) {
+  modules.push({
+    resolve: "@medusajs/medusa/payment",
+    options: {
+      providers: [
+        {
+          resolve: "@medusajs/medusa/payment-stripe",
+          id: "stripe",
+          options: {
+            apiKey: process.env.STRIPE_API_KEY,
+          },
+        },
+      ],
+    },
+  })
+}
+
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
@@ -19,12 +38,5 @@ module.exports = defineConfig({
     disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
     backendUrl: process.env.MEDUSA_BACKEND_URL || "http://localhost:9000",
   },
-  modules: process.env.STRIPE_API_KEY ? [
-    {
-      resolve: "@medusajs/medusa/payment-stripe",
-      options: {
-        apiKey: process.env.STRIPE_API_KEY,
-      },
-    },
-  ] : undefined,
+  modules: modules.length > 0 ? modules : undefined,
 })
