@@ -54,6 +54,23 @@ if (process.env.REDIS_URL) {
   )
 }
 
+// File provider — fix localhost URLs for uploaded images
+const backendUrl = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
+modules.push({
+  resolve: "@medusajs/medusa/file",
+  options: {
+    providers: [
+      {
+        resolve: "@medusajs/medusa/file-local",
+        id: "local",
+        options: {
+          backend_url: `${backendUrl}/static`,
+        },
+      },
+    ],
+  },
+})
+
 // Stripe payment provider
 if (process.env.STRIPE_API_KEY) {
   modules.push({
