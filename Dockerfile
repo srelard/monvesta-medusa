@@ -10,6 +10,9 @@ RUN npm ci
 
 COPY . .
 
+ARG MEDUSA_BACKEND_URL=https://api.monvesta.de
+ENV MEDUSA_BACKEND_URL=$MEDUSA_BACKEND_URL
+
 RUN npx medusa build
 
 RUN cd .medusa/server && npm install --legacy-peer-deps
