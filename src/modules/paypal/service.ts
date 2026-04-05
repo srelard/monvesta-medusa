@@ -108,6 +108,12 @@ class PayPalPaymentProviderService extends AbstractPaymentProvider<Options> {
     try {
       const { amount, currency_code } = input
 
+      // Medusa stores amounts as-is (e.g. 200 for 200.00 EUR)
+      // PayPal expects a decimal string like "200.00"
+      const formattedAmount = typeof amount === "number"
+        ? amount.toFixed(2)
+        : Number(amount).toFixed(2)
+
       const intent = this.options_.autoCapture
         ? CheckoutPaymentIntent.Capture
         : CheckoutPaymentIntent.Authorize
@@ -118,7 +124,7 @@ class PayPalPaymentProviderService extends AbstractPaymentProvider<Options> {
           {
             amount: {
               currencyCode: currency_code.toUpperCase(),
-              value: amount.toString(),
+              value: formattedAmount,
             },
             description: "Order payment",
             customId: input.data?.session_id as string | undefined,
@@ -187,7 +193,7 @@ class PayPalPaymentProviderService extends AbstractPaymentProvider<Options> {
           {
             op: PatchOp.Replace,
             path: "/purchase_units/@reference_id=='default'/amount/value",
-            value: new BigNumber(input.amount).numeric.toString(),
+            value: Number(new BigNumber(input.amount).numeric).toFixed(2),
           },
         ],
       })
