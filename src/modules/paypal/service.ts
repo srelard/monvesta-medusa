@@ -108,11 +108,13 @@ class PayPalPaymentProviderService extends AbstractPaymentProvider<Options> {
     try {
       const { amount, currency_code } = input
 
-      // Medusa stores amounts as-is (e.g. 200 for 200.00 EUR)
+      this.logger_.info(`[PayPal] initiatePayment — raw amount: ${amount}, type: ${typeof amount}, currency: ${currency_code}`)
+
+      // Medusa v2 passes amounts in smallest currency unit (cents for EUR)
       // PayPal expects a decimal string like "200.00"
-      const formattedAmount = typeof amount === "number"
-        ? amount.toFixed(2)
-        : Number(amount).toFixed(2)
+      // For EUR (2 decimal places): 20000 cents → "200.00"
+      const numericAmount = Number(amount)
+      const formattedAmount = (numericAmount / 100).toFixed(2)
 
       const intent = this.options_.autoCapture
         ? CheckoutPaymentIntent.Capture
@@ -193,7 +195,7 @@ class PayPalPaymentProviderService extends AbstractPaymentProvider<Options> {
           {
             op: PatchOp.Replace,
             path: "/purchase_units/@reference_id=='default'/amount/value",
-            value: Number(new BigNumber(input.amount).numeric).toFixed(2),
+            value: (Number(new BigNumber(input.amount).numeric) / 100).toFixed(2),
           },
         ],
       })
