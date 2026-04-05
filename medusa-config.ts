@@ -107,6 +107,11 @@ if (paymentProviders.length > 0) {
   })
 }
 
+// Translation Module
+modules.push({
+  resolve: "@medusajs/medusa/translation",
+})
+
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
@@ -123,6 +128,9 @@ module.exports = defineConfig({
   admin: {
     disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
     backendUrl: process.env.MEDUSA_BACKEND_URL || "http://localhost:9000",
+  },
+  featureFlags: {
+    translation: true,
   },
   modules: modules.length > 0 ? modules : undefined,
 })
