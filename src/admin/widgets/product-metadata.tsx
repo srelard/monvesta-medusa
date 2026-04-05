@@ -2,21 +2,28 @@ import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { DetailWidgetProps, HttpTypes } from "@medusajs/framework/types"
 import { Container, Heading, Text, Button, Drawer, Input, Textarea, IconButton } from "@medusajs/ui"
 import { PencilSquare, Plus, Trash } from "@medusajs/icons"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 
 // ─── Types ───
 interface Feature { title: string; description: string }
-interface Module { title: string; duration: string; lessons: string }
+interface CourseModule { title: string; duration: string; lessons: string }
 interface Testimonial { name: string; text: string; rating: number }
-interface FAQ { q: string; a: string }
+interface FAQ { question: string; answer: string }
+interface Stat { value: string; label: string }
 
-interface ProductMetadata {
-  badge?: string
-  trust_badges?: string[]
-  stats?: { value: string; label: string }[]
+interface ProductContentData {
+  badge?: string | null
+  sale_label?: string | null
+  discount_label?: string | null
+  sale_ends_at?: string | null
+  original_price?: number | null
+  video_url?: string | null
+  video_thumbnail?: string | null
+  trust_badges?: { label: string }[]
+  stats?: Stat[]
   features?: Feature[]
-  modules?: Module[]
-  audience?: string[]
+  course_modules?: CourseModule[]
+  audience?: { text: string }[]
   testimonials?: Testimonial[]
   faqs?: FAQ[]
 }
@@ -24,10 +31,42 @@ interface ProductMetadata {
 // ─── Widget ───
 const ProductMetadataWidget = ({ data: product }: DetailWidgetProps<HttpTypes.AdminProduct>) => {
   const [open, setOpen] = useState(false)
-  const meta = (product.metadata || {}) as ProductMetadata
+  const [content, setContent] = useState<ProductContentData | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const hasContent = meta.badge || meta.features?.length || meta.modules?.length ||
-    meta.testimonials?.length || meta.faqs?.length || meta.audience?.length
+  const fetchContent = useCallback(async () => {
+    try {
+      const res = await fetch(`/admin/products/${product.id}/content`, {
+        credentials: "include",
+      })
+      const data = await res.json()
+      setContent(data.content || null)
+    } catch (err) {
+      console.error("Failed to load content:", err)
+    } finally {
+      setLoading(false)
+    }
+  }, [product.id])
+
+  useEffect(() => {
+    fetchContent()
+  }, [fetchContent])
+
+  const hasContent = content && (
+    content.badge || content.features?.length || content.course_modules?.length ||
+    content.testimonials?.length || content.faqs?.length || content.audience?.length ||
+    content.video_url
+  )
+
+  if (loading) {
+    return (
+      <Container className="divide-y p-0">
+        <div className="px-6 py-4">
+          <Text size="small" className="text-ui-fg-subtle">Inhalte werden geladen...</Text>
+        </div>
+      </Container>
+    )
+  }
 
   return (
     <Container className="divide-y p-0">
@@ -35,7 +74,7 @@ const ProductMetadataWidget = ({ data: product }: DetailWidgetProps<HttpTypes.Ad
         <div>
           <Heading level="h2">Produktseite Inhalte</Heading>
           <Text size="small" className="text-ui-fg-subtle">
-            Marketing-Inhalte fuer die Produktdetailseite
+            Marketing-Inhalte für die Produktdetailseite
           </Text>
         </div>
         <Button size="small" variant="secondary" onClick={() => setOpen(true)}>
@@ -47,40 +86,43 @@ const ProductMetadataWidget = ({ data: product }: DetailWidgetProps<HttpTypes.Ad
       <div className="px-6 py-4">
         {!hasContent ? (
           <Text size="small" className="text-ui-fg-subtle">
-            Noch keine Marketing-Inhalte hinterlegt. Klicke auf "Bearbeiten" um Inhalte hinzuzufuegen.
+            Noch keine Marketing-Inhalte hinterlegt. Klicke auf "Bearbeiten" um Inhalte hinzuzufügen.
           </Text>
         ) : (
           <div className="space-y-3">
-            {meta.badge && (
-              <MetaRow label="Badge" value={meta.badge} />
+            {content.badge && <MetaRow label="Badge" value={content.badge} />}
+            {content.trust_badges && content.trust_badges.length > 0 && (
+              <MetaRow label="Trust Badges" value={content.trust_badges.map(b => b.label).join(", ")} />
             )}
-            {meta.trust_badges && meta.trust_badges.length > 0 && (
-              <MetaRow label="Trust Badges" value={meta.trust_badges.join(", ")} />
+            {content.stats && content.stats.length > 0 && (
+              <MetaRow label="Stats" value={`${content.stats.length} Einträge`} />
             )}
-            {meta.features && meta.features.length > 0 && (
-              <MetaRow label="Features" value={`${meta.features.length} Eintraege`} />
+            {content.features && content.features.length > 0 && (
+              <MetaRow label="Features" value={`${content.features.length} Einträge`} />
             )}
-            {meta.modules && meta.modules.length > 0 && (
-              <MetaRow label="Module" value={`${meta.modules.length} Module`} />
+            {content.course_modules && content.course_modules.length > 0 && (
+              <MetaRow label="Module" value={`${content.course_modules.length} Module`} />
             )}
-            {meta.audience && meta.audience.length > 0 && (
-              <MetaRow label="Zielgruppe" value={`${meta.audience.length} Punkte`} />
+            {content.audience && content.audience.length > 0 && (
+              <MetaRow label="Zielgruppe" value={`${content.audience.length} Punkte`} />
             )}
-            {meta.testimonials && meta.testimonials.length > 0 && (
-              <MetaRow label="Testimonials" value={`${meta.testimonials.length} Bewertungen`} />
+            {content.testimonials && content.testimonials.length > 0 && (
+              <MetaRow label="Testimonials" value={`${content.testimonials.length} Bewertungen`} />
             )}
-            {meta.faqs && meta.faqs.length > 0 && (
-              <MetaRow label="FAQs" value={`${meta.faqs.length} Fragen`} />
+            {content.faqs && content.faqs.length > 0 && (
+              <MetaRow label="FAQs" value={`${content.faqs.length} Fragen`} />
             )}
+            {content.video_url && <MetaRow label="Video" value="Vorhanden" />}
           </div>
         )}
       </div>
 
-      <MetadataDrawer
+      <ContentDrawer
         open={open}
         onClose={() => setOpen(false)}
         productId={product.id}
-        metadata={meta}
+        content={content}
+        onSaved={fetchContent}
       />
     </Container>
   )
@@ -96,56 +138,93 @@ function MetaRow({ label, value }: { label: string; value: string }) {
 }
 
 // ─── Drawer ───
-function MetadataDrawer({
+function ContentDrawer({
   open,
   onClose,
   productId,
-  metadata,
+  content,
+  onSaved,
 }: {
   open: boolean
   onClose: () => void
   productId: string
-  metadata: ProductMetadata
+  content: ProductContentData | null
+  onSaved: () => void
 }) {
   const [saving, setSaving] = useState(false)
-  const [badge, setBadge] = useState(metadata.badge || "")
-  const [trustBadges, setTrustBadges] = useState<string[]>(metadata.trust_badges || [])
-  const [features, setFeatures] = useState<Feature[]>(metadata.features || [])
-  const [modules, setModules] = useState<Module[]>(metadata.modules || [])
-  const [audience, setAudience] = useState<string[]>(metadata.audience || [])
-  const [testimonials, setTestimonials] = useState<Testimonial[]>(metadata.testimonials || [])
-  const [faqs, setFaqs] = useState<FAQ[]>(metadata.faqs || [])
+  const [badge, setBadge] = useState(content?.badge || "")
+  const [saleLabel, setSaleLabel] = useState(content?.sale_label || "")
+  const [discountLabel, setDiscountLabel] = useState(content?.discount_label || "")
+  const [saleEndsAt, setSaleEndsAt] = useState(content?.sale_ends_at || "")
+  const [originalPrice, setOriginalPrice] = useState(content?.original_price?.toString() || "")
+  const [videoUrl, setVideoUrl] = useState(content?.video_url || "")
+  const [videoThumbnail, setVideoThumbnail] = useState(content?.video_thumbnail || "")
+  const [trustBadges, setTrustBadges] = useState<string[]>(
+    content?.trust_badges?.map(b => b.label) || []
+  )
+  const [stats, setStats] = useState<Stat[]>(content?.stats || [])
+  const [features, setFeatures] = useState<Feature[]>(content?.features || [])
+  const [modules, setModules] = useState<CourseModule[]>(content?.course_modules || [])
+  const [audience, setAudience] = useState<string[]>(
+    content?.audience?.map(a => a.text) || []
+  )
+  const [testimonials, setTestimonials] = useState<Testimonial[]>(content?.testimonials || [])
+  const [faqs, setFaqs] = useState<FAQ[]>(content?.faqs || [])
+
+  // Reset state when content changes (e.g. after save + refetch)
+  useEffect(() => {
+    setBadge(content?.badge || "")
+    setSaleLabel(content?.sale_label || "")
+    setDiscountLabel(content?.discount_label || "")
+    setSaleEndsAt(content?.sale_ends_at || "")
+    setOriginalPrice(content?.original_price?.toString() || "")
+    setVideoUrl(content?.video_url || "")
+    setVideoThumbnail(content?.video_thumbnail || "")
+    setTrustBadges(content?.trust_badges?.map(b => b.label) || [])
+    setStats(content?.stats || [])
+    setFeatures(content?.features || [])
+    setModules(content?.course_modules || [])
+    setAudience(content?.audience?.map(a => a.text) || [])
+    setTestimonials(content?.testimonials || [])
+    setFaqs(content?.faqs || [])
+  }, [content])
 
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
-      const updatedMetadata: Record<string, unknown> = {
-        ...(metadata as Record<string, unknown>),
-        badge: badge || undefined,
-        trust_badges: trustBadges.length > 0 ? trustBadges : undefined,
-        features: features.length > 0 ? features : undefined,
-        modules: modules.length > 0 ? modules : undefined,
-        audience: audience.length > 0 ? audience : undefined,
-        testimonials: testimonials.length > 0 ? testimonials : undefined,
-        faqs: faqs.length > 0 ? faqs : undefined,
+      const body: ProductContentData = {
+        badge: badge || null,
+        sale_label: saleLabel || null,
+        discount_label: discountLabel || null,
+        sale_ends_at: saleEndsAt || null,
+        original_price: originalPrice ? Number(originalPrice) : null,
+        video_url: videoUrl || null,
+        video_thumbnail: videoThumbnail || null,
+        trust_badges: trustBadges.filter(b => b).map(label => ({ label })),
+        stats: stats.filter(s => s.value || s.label),
+        features: features.filter(f => f.title || f.description),
+        course_modules: modules.filter(m => m.title),
+        audience: audience.filter(a => a).map(text => ({ text })),
+        testimonials: testimonials.filter(t => t.name || t.text),
+        faqs: faqs.filter(f => f.question || f.answer),
       }
 
-      await fetch(`/admin/products/${productId}`, {
+      await fetch(`/admin/products/${productId}/content`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ metadata: updatedMetadata }),
+        body: JSON.stringify(body),
       })
 
       onClose()
-      window.location.reload()
+      onSaved()
     } catch (err) {
       console.error("Save error:", err)
       alert("Speichern fehlgeschlagen")
     } finally {
       setSaving(false)
     }
-  }, [badge, trustBadges, features, modules, audience, testimonials, faqs, productId, metadata, onClose])
+  }, [badge, saleLabel, discountLabel, saleEndsAt, originalPrice, videoUrl, videoThumbnail, trustBadges, stats, features, modules, audience, testimonials, faqs, productId, onClose, onSaved])
 
   return (
     <Drawer open={open} onOpenChange={(v) => !v && onClose()}>
@@ -157,16 +236,52 @@ function MetadataDrawer({
 
           {/* Badge */}
           <Section title="Badge">
-            <Input
-              value={badge}
-              onChange={(e) => setBadge(e.target.value)}
-              placeholder="z.B. Online-Kurs, Premium, Tool"
-            />
+            <Input value={badge} onChange={(e) => setBadge(e.target.value)} placeholder="z.B. Online-Kurs, Premium, Tool" />
+          </Section>
+
+          {/* Sale / Pricing */}
+          <Section title="Angebot / Preis">
+            <div className="space-y-2">
+              <Input value={saleLabel} onChange={(e) => setSaleLabel(e.target.value)} placeholder="Sale Label (z.B. Angebot)" />
+              <Input value={discountLabel} onChange={(e) => setDiscountLabel(e.target.value)} placeholder="Rabatt Label (z.B. -30%)" />
+              <Input value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} placeholder="Originalpreis (z.B. 349)" type="number" />
+              <Input value={saleEndsAt} onChange={(e) => setSaleEndsAt(e.target.value)} placeholder="Sale endet am (ISO Datum)" type="datetime-local" />
+            </div>
+          </Section>
+
+          {/* Video */}
+          <Section title="Video">
+            <div className="space-y-2">
+              <Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="Video URL (z.B. Mux Stream URL)" />
+              <Input value={videoThumbnail} onChange={(e) => setVideoThumbnail(e.target.value)} placeholder="Video Thumbnail URL" />
+            </div>
           </Section>
 
           {/* Trust Badges */}
           <Section title="Trust Badges">
-            <StringListEditor items={trustBadges} onChange={setTrustBadges} placeholder="z.B. 14 Tage Geld-zurueck" />
+            <StringListEditor items={trustBadges} onChange={setTrustBadges} placeholder="z.B. 14 Tage Geld-zurück" />
+          </Section>
+
+          {/* Stats */}
+          <Section title="Stats">
+            {stats.map((s, i) => (
+              <div key={i} className="flex gap-2 items-start mb-2">
+                <div className="flex-1 flex gap-2">
+                  <Input size="small" value={s.value} onChange={(e) => {
+                    const updated = [...stats]; updated[i] = { ...s, value: e.target.value }; setStats(updated)
+                  }} placeholder="Wert (z.B. 200+)" />
+                  <Input size="small" value={s.label} onChange={(e) => {
+                    const updated = [...stats]; updated[i] = { ...s, label: e.target.value }; setStats(updated)
+                  }} placeholder="Label (z.B. Teilnehmer)" />
+                </div>
+                <IconButton size="small" variant="transparent" onClick={() => setStats(stats.filter((_, j) => j !== i))}>
+                  <Trash />
+                </IconButton>
+              </div>
+            ))}
+            <Button size="small" variant="secondary" onClick={() => setStats([...stats, { value: "", label: "" }])}>
+              <Plus /> Stat hinzufügen
+            </Button>
           </Section>
 
           {/* Features */}
@@ -187,7 +302,7 @@ function MetadataDrawer({
               </div>
             ))}
             <Button size="small" variant="secondary" onClick={() => setFeatures([...features, { title: "", description: "" }])}>
-              <Plus /> Feature hinzufuegen
+              <Plus /> Feature hinzufügen
             </Button>
           </Section>
 
@@ -214,7 +329,7 @@ function MetadataDrawer({
               </div>
             ))}
             <Button size="small" variant="secondary" onClick={() => setModules([...modules, { title: "", duration: "", lessons: "" }])}>
-              <Plus /> Modul hinzufuegen
+              <Plus /> Modul hinzufügen
             </Button>
           </Section>
 
@@ -244,7 +359,7 @@ function MetadataDrawer({
               </div>
             ))}
             <Button size="small" variant="secondary" onClick={() => setTestimonials([...testimonials, { name: "", text: "", rating: 5 }])}>
-              <Plus /> Testimonial hinzufuegen
+              <Plus /> Testimonial hinzufügen
             </Button>
           </Section>
 
@@ -253,11 +368,11 @@ function MetadataDrawer({
             {faqs.map((f, i) => (
               <div key={i} className="flex gap-2 items-start mb-2">
                 <div className="flex-1 space-y-1">
-                  <Input size="small" value={f.q} onChange={(e) => {
-                    const updated = [...faqs]; updated[i] = { ...f, q: e.target.value }; setFaqs(updated)
+                  <Input size="small" value={f.question} onChange={(e) => {
+                    const updated = [...faqs]; updated[i] = { ...f, question: e.target.value }; setFaqs(updated)
                   }} placeholder="Frage" />
-                  <Textarea value={f.a} onChange={(e) => {
-                    const updated = [...faqs]; updated[i] = { ...f, a: e.target.value }; setFaqs(updated)
+                  <Textarea value={f.answer} onChange={(e) => {
+                    const updated = [...faqs]; updated[i] = { ...f, answer: e.target.value }; setFaqs(updated)
                   }} placeholder="Antwort" />
                 </div>
                 <IconButton size="small" variant="transparent" onClick={() => setFaqs(faqs.filter((_, j) => j !== i))}>
@@ -265,8 +380,8 @@ function MetadataDrawer({
                 </IconButton>
               </div>
             ))}
-            <Button size="small" variant="secondary" onClick={() => setFaqs([...faqs, { q: "", a: "" }])}>
-              <Plus /> FAQ hinzufuegen
+            <Button size="small" variant="secondary" onClick={() => setFaqs([...faqs, { question: "", answer: "" }])}>
+              <Plus /> FAQ hinzufügen
             </Button>
           </Section>
 
@@ -323,7 +438,7 @@ function StringListEditor({
         </div>
       ))}
       <Button size="small" variant="secondary" onClick={() => onChange([...items, ""])}>
-        <Plus /> Hinzufuegen
+        <Plus /> Hinzufügen
       </Button>
     </div>
   )
