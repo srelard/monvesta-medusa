@@ -112,6 +112,11 @@ modules.push({
   resolve: "@medusajs/medusa/translation",
 })
 
+// Product Content Module (translatable marketing content)
+modules.push({
+  resolve: "./src/modules/product-content",
+})
+
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
