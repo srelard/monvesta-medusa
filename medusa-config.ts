@@ -71,20 +71,38 @@ modules.push({
   },
 })
 
-// Stripe payment provider
+// Payment providers (Stripe + PayPal)
+const paymentProviders: any[] = []
+
 if (process.env.STRIPE_API_KEY) {
+  paymentProviders.push({
+    resolve: "@medusajs/medusa/payment-stripe",
+    id: "stripe",
+    options: {
+      apiKey: process.env.STRIPE_API_KEY,
+    },
+  })
+}
+
+if (process.env.PAYPAL_CLIENT_ID) {
+  paymentProviders.push({
+    resolve: "./src/modules/paypal",
+    id: "paypal",
+    options: {
+      client_id: process.env.PAYPAL_CLIENT_ID,
+      client_secret: process.env.PAYPAL_CLIENT_SECRET,
+      environment: process.env.PAYPAL_ENVIRONMENT || "sandbox",
+      autoCapture: process.env.PAYPAL_AUTO_CAPTURE === "true",
+      webhook_id: process.env.PAYPAL_WEBHOOK_ID,
+    },
+  })
+}
+
+if (paymentProviders.length > 0) {
   modules.push({
     resolve: "@medusajs/medusa/payment",
     options: {
-      providers: [
-        {
-          resolve: "@medusajs/medusa/payment-stripe",
-          id: "stripe",
-          options: {
-            apiKey: process.env.STRIPE_API_KEY,
-          },
-        },
-      ],
+      providers: paymentProviders,
     },
   })
 }
