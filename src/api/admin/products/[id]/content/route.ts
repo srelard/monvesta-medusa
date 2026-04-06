@@ -25,12 +25,15 @@ export const GET = async (
   res: MedusaResponse
 ) => {
   const { id } = req.params
+  const start = Date.now()
   const service: ProductContentModuleService = req.scope.resolve(PRODUCT_CONTENT_MODULE)
 
+  const t1 = Date.now()
   const contents = await service.listProductContents(
     { product_id: id },
     { relations: RELATIONS }
   )
+  console.log(`[Admin Content API] DB query: ${Date.now() - t1}ms, total: ${Date.now() - start}ms`)
 
   if (!contents.length) {
     return res.json({ content: null })
