@@ -27,14 +27,12 @@ export const uploadPdfStep = createStep(
     ])
 
     // Update invoice record with file URL
-    await invoiceService.updateInvoices(
-      { id: invoice_id },
-      {
-        file_url: file.url,
-        file_key: file.id,
-        status: InvoiceStatus.GENERATED,
-      }
-    )
+    await invoiceService.updateInvoices({
+      id: invoice_id,
+      file_url: file.url,
+      file_key: file.id,
+      status: InvoiceStatus.GENERATED,
+    })
 
     return new StepResponse(
       { file_url: file.url, file_key: file.id },
@@ -53,14 +51,12 @@ export const uploadPdfStep = createStep(
 
     if (invoice_id) {
       const invoiceService: InvoiceModuleService = container.resolve(INVOICE_MODULE)
-      await invoiceService.updateInvoices(
-        { id: invoice_id },
-        {
-          file_url: null,
-          file_key: null,
-          status: InvoiceStatus.PENDING,
-        }
-      )
+      await invoiceService.updateInvoices({
+        id: invoice_id,
+        file_url: null as any,
+        file_key: null as any,
+        status: InvoiceStatus.PENDING,
+      })
     }
   }
 )
