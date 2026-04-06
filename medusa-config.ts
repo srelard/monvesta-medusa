@@ -54,22 +54,47 @@ if (process.env.REDIS_URL) {
   )
 }
 
-// File provider — fix localhost URLs for uploaded images
-const backendUrl = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
-modules.push({
-  resolve: "@medusajs/medusa/file",
-  options: {
-    providers: [
-      {
-        resolve: "@medusajs/medusa/file-local",
-        id: "local",
-        options: {
-          backend_url: `${backendUrl}/static`,
+// File provider — S3 compatible (Supabase Storage) for production, local for dev
+if (process.env.S3_ACCESS_KEY_ID) {
+  modules.push({
+    resolve: "@medusajs/medusa/file",
+    options: {
+      providers: [
+        {
+          resolve: "@medusajs/medusa/file-s3",
+          id: "s3",
+          options: {
+            file_url: process.env.S3_FILE_URL,
+            access_key_id: process.env.S3_ACCESS_KEY_ID,
+            secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
+            region: process.env.S3_REGION || "eu-central-1",
+            bucket: process.env.S3_BUCKET || "medusa-media",
+            endpoint: process.env.S3_ENDPOINT,
+            additional_client_config: {
+              forcePathStyle: true,
+            },
+          },
         },
-      },
-    ],
-  },
-})
+      ],
+    },
+  })
+} else {
+  const backendUrl = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
+  modules.push({
+    resolve: "@medusajs/medusa/file",
+    options: {
+      providers: [
+        {
+          resolve: "@medusajs/medusa/file-local",
+          id: "local",
+          options: {
+            backend_url: `${backendUrl}/static`,
+          },
+        },
+      ],
+    },
+  })
+}
 
 // Payment providers (Stripe + PayPal)
 const paymentProviders: any[] = []
