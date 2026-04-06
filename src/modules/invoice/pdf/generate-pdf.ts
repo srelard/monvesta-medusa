@@ -1,28 +1,17 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const PdfPrinter = require("pdfmake")
-import { resolve, dirname } from "path"
+const vfsFonts = require("pdfmake/build/vfs_fonts")
+
 // pdfmake document definition type
 type TDocumentDefinitions = any
 
-// Resolve Roboto fonts bundled with pdfmake
-function getFontsDir(): string {
-  try {
-    const pdfmakePkg = require.resolve("pdfmake/package.json")
-    return resolve(dirname(pdfmakePkg), "fonts", "Roboto")
-  } catch {
-    // Fallback for different module resolution
-    return resolve(process.cwd(), "node_modules", "pdfmake", "fonts", "Roboto")
-  }
-}
-
-const fontsDir = getFontsDir()
-
+// Use bundled vfs fonts (base64 encoded, no file paths needed)
 const fonts = {
   Roboto: {
-    normal: resolve(fontsDir, "Roboto-Regular.ttf"),
-    bold: resolve(fontsDir, "Roboto-Medium.ttf"),
-    italics: resolve(fontsDir, "Roboto-Italic.ttf"),
-    bolditalics: resolve(fontsDir, "Roboto-MediumItalic.ttf"),
+    normal: Buffer.from(vfsFonts["Roboto-Regular.ttf"], "base64"),
+    bold: Buffer.from(vfsFonts["Roboto-Medium.ttf"], "base64"),
+    italics: Buffer.from(vfsFonts["Roboto-Italic.ttf"], "base64"),
+    bolditalics: Buffer.from(vfsFonts["Roboto-MediumItalic.ttf"], "base64"),
   },
 }
 
@@ -308,29 +297,15 @@ export function buildInvoiceDocDefinition(data: InvoicePdfData): TDocumentDefini
  */
 export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
   console.log(`[Invoice PDF] Generating PDF for ${data.invoice_number}...`)
-  console.log(`[Invoice PDF] PdfPrinter type: ${typeof PdfPrinter}, is function: ${typeof PdfPrinter === 'function'}`)
-
-  if (typeof PdfPrinter !== "function") {
-    console.error(`[Invoice PDF] PdfPrinter is not a function! Keys:`, Object.keys(PdfPrinter || {}))
-    // Try nested default
-    const Ctor = PdfPrinter?.default || PdfPrinter?.PdfPrinter
-    if (typeof Ctor !== "function") {
-      throw new Error(`PdfPrinter is not a constructor. Type: ${typeof PdfPrinter}, keys: ${Object.keys(PdfPrinter || {})}`)
-    }
-    console.log(`[Invoice PDF] Found constructor via fallback`)
-  }
-
-  const Ctor = typeof PdfPrinter === "function" ? PdfPrinter : (PdfPrinter?.default || PdfPrinter?.PdfPrinter)
-  const printer = new Ctor(fonts)
+  const printer = new PdfPrinter(fonts)
   const docDefinition = buildInvoiceDocDefinition(data)
-  console.log(`[Invoice PDF] Creating PDF document...`)
   const pdfDoc = printer.createPdfKitDocument(docDefinition)
 
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     pdfDoc.on("data", (chunk: Buffer) => chunks.push(chunk))
-    pdfDoc.on("end", () => { console.log(`[Invoice PDF] PDF generated, size: ${Buffer.concat(chunks).length} bytes`); resolve(Buffer.concat(chunks)) })
-    pdfDoc.on("error", (err: any) => { console.error(`[Invoice PDF] PDF error:`, err); reject(err) })
+    pdfDoc.on("end", () => { console.log(`[Invoice PDF] Done, ${Buffer.concat(chunks).length} bytes`); resolve(Buffer.concat(chunks)) })
+    pdfDoc.on("error", (err: any) => { console.error(`[Invoice PDF] Error:`, err); reject(err) })
     pdfDoc.end()
   })
 }

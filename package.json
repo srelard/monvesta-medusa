@@ -27,7 +27,7 @@
     "@medusajs/framework": "2.13.1",
     "@medusajs/medusa": "2.13.1",
     "@paypal/paypal-server-sdk": "^2.3.0",
-    "pdfmake": "^0.3.7"
+    "pdfmake": "^0.2.18"
   },
   "devDependencies": {
     "@medusajs/test-utils": "2.13.1",
