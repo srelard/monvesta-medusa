@@ -1,8 +1,6 @@
-import PdfMakeModule from "pdfmake"
-// Handle ESM/CJS interop
-const PdfPrinter = (PdfMakeModule as any).default || PdfMakeModule
+/* eslint-disable @typescript-eslint/no-require-imports */
+const PdfPrinter = require("pdfmake")
 import { resolve, dirname } from "path"
-import { fileURLToPath } from "url"
 // pdfmake document definition type
 type TDocumentDefinitions = any
 
