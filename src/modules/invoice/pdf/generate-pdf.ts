@@ -60,6 +60,7 @@ export type InvoicePdfData = {
   total: number
   tax_rate: number
   currency_code: string
+  _logoBase64?: string
 }
 
 function formatCurrency(amount: number, currency: string): string {
@@ -158,6 +159,9 @@ export function buildInvoiceDocDefinition(data: InvoicePdfData): TDocumentDefini
     ]),
 
     content: [
+      // Logo (inserted dynamically if available)
+      ...(data._logoBase64 ? [{ image: data._logoBase64, width: 140, margin: [0, 0, 0, 20] as [number, number, number, number] }] : []),
+
       // Company sender line (small, above recipient)
       {
         text: companyOneLiner,
@@ -358,6 +362,22 @@ export function buildInvoiceDocDefinition(data: InvoicePdfData): TDocumentDefini
  */
 export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
   console.log(`[Invoice PDF] Generating PDF for ${data.invoice_number}...`)
+
+  // Fetch logo if URL provided
+  if (data.company.logo_url && !data._logoBase64) {
+    try {
+      const res = await fetch(data.company.logo_url)
+      if (res.ok) {
+        const buf = Buffer.from(await res.arrayBuffer())
+        const mime = res.headers.get("content-type") || "image/png"
+        data._logoBase64 = `data:${mime};base64,${buf.toString("base64")}`
+        console.log(`[Invoice PDF] Logo loaded (${buf.length} bytes)`)
+      }
+    } catch (err) {
+      console.warn(`[Invoice PDF] Could not load logo:`, err)
+    }
+  }
+
   const printer = new PdfPrinter(fonts)
   const docDefinition = buildInvoiceDocDefinition(data)
   const pdfDoc = printer.createPdfKitDocument(docDefinition)

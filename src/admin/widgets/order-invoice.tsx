@@ -7,8 +7,9 @@ import {
   Button,
   Badge,
   toast,
+  Prompt,
 } from "@medusajs/ui"
-import { DocumentText } from "@medusajs/icons"
+import { DocumentText, Trash } from "@medusajs/icons"
 import { useState, useEffect, useCallback } from "react"
 
 interface InvoiceData {
@@ -74,6 +75,24 @@ const OrderInvoiceWidget = ({
   const handleDownload = (invoice: InvoiceData) => {
     if (invoice.file_url) {
       window.open(invoice.file_url, "_blank")
+    }
+  }
+
+  const handleDelete = async (invoice: InvoiceData) => {
+    if (!confirm(`Rechnung ${invoice.invoice_number} wirklich löschen?`)) return
+    try {
+      const res = await fetch(`/admin/orders/${order.id}/invoice/${invoice.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+      if (res.ok) {
+        toast.success(`Rechnung ${invoice.invoice_number} gelöscht`)
+        await fetchInvoices()
+      } else {
+        toast.error("Fehler beim Löschen")
+      }
+    } catch {
+      toast.error("Fehler beim Löschen")
     }
   }
 
@@ -152,15 +171,24 @@ const OrderInvoiceWidget = ({
                 {formatCurrency(inv.total, inv.currency_code)}
               </Text>
             </div>
-            {inv.file_url && (
-              <Button
-                variant="secondary"
-                size="small"
-                onClick={() => handleDownload(inv)}
+            <div className="flex items-center gap-2">
+              {inv.file_url && (
+                <Button
+                  variant="secondary"
+                  size="small"
+                  onClick={() => handleDownload(inv)}
+                >
+                  PDF herunterladen
+                </Button>
+              )}
+              <button
+                onClick={() => handleDelete(inv)}
+                className="text-ui-fg-subtle hover:text-ui-fg-error p-1 transition-colors"
+                title="Rechnung löschen"
               >
-                PDF herunterladen
-              </Button>
-            )}
+                <Trash className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         ))
       )}
