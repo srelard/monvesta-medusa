@@ -1,4 +1,6 @@
-import PdfPrinter from "pdfmake"
+import PdfMakeModule from "pdfmake"
+// Handle ESM/CJS interop
+const PdfPrinter = (PdfMakeModule as any).default || PdfMakeModule
 import { resolve, dirname } from "path"
 import { fileURLToPath } from "url"
 // pdfmake document definition type
