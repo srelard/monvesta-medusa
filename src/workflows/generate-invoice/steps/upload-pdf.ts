@@ -16,6 +16,7 @@ export const uploadPdfStep = createStep(
     const fileService = container.resolve(Modules.FILE)
     const invoiceService: InvoiceModuleService = container.resolve(INVOICE_MODULE)
 
+    console.log(`[Invoice] Step: upload-pdf for invoice ${invoice_id}, filename: ${filename}`)
     // Upload PDF via File Module (S3/local)
     const [file] = await fileService.createFiles([
       {

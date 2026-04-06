@@ -307,15 +307,30 @@ export function buildInvoiceDocDefinition(data: InvoicePdfData): TDocumentDefini
  * Generate a PDF buffer from invoice data.
  */
 export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
-  const printer = new PdfPrinter(fonts)
+  console.log(`[Invoice PDF] Generating PDF for ${data.invoice_number}...`)
+  console.log(`[Invoice PDF] PdfPrinter type: ${typeof PdfPrinter}, is function: ${typeof PdfPrinter === 'function'}`)
+
+  if (typeof PdfPrinter !== "function") {
+    console.error(`[Invoice PDF] PdfPrinter is not a function! Keys:`, Object.keys(PdfPrinter || {}))
+    // Try nested default
+    const Ctor = PdfPrinter?.default || PdfPrinter?.PdfPrinter
+    if (typeof Ctor !== "function") {
+      throw new Error(`PdfPrinter is not a constructor. Type: ${typeof PdfPrinter}, keys: ${Object.keys(PdfPrinter || {})}`)
+    }
+    console.log(`[Invoice PDF] Found constructor via fallback`)
+  }
+
+  const Ctor = typeof PdfPrinter === "function" ? PdfPrinter : (PdfPrinter?.default || PdfPrinter?.PdfPrinter)
+  const printer = new Ctor(fonts)
   const docDefinition = buildInvoiceDocDefinition(data)
+  console.log(`[Invoice PDF] Creating PDF document...`)
   const pdfDoc = printer.createPdfKitDocument(docDefinition)
 
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     pdfDoc.on("data", (chunk: Buffer) => chunks.push(chunk))
-    pdfDoc.on("end", () => resolve(Buffer.concat(chunks)))
-    pdfDoc.on("error", reject)
+    pdfDoc.on("end", () => { console.log(`[Invoice PDF] PDF generated, size: ${Buffer.concat(chunks).length} bytes`); resolve(Buffer.concat(chunks)) })
+    pdfDoc.on("error", (err: any) => { console.error(`[Invoice PDF] PDF error:`, err); reject(err) })
     pdfDoc.end()
   })
 }

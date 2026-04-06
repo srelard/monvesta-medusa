@@ -11,6 +11,7 @@ type CreateInvoiceInput = {
 export const createInvoiceStep = createStep(
   "create-invoice",
   async ({ order, config }: CreateInvoiceInput, { container }) => {
+    console.log(`[Invoice] Step: create-invoice for order ${order?.id}`)
     const invoiceService: InvoiceModuleService = container.resolve(INVOICE_MODULE)
 
     const prefix = config.invoice_prefix || "RE"
