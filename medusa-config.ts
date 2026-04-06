@@ -142,6 +142,11 @@ modules.push({
   resolve: "./src/modules/product-content",
 })
 
+// Invoice Module (German-compliant invoices with PDF generation)
+modules.push({
+  resolve: "./src/modules/invoice",
+})
+
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,

@@ -2,6 +2,7 @@ import type {
   SubscriberArgs,
   SubscriberConfig,
 } from "@medusajs/framework"
+import { generateInvoiceWorkflow } from "../workflows/generate-invoice"
 
 export default async function orderPlacedHandler({
   event: { data },
@@ -10,15 +11,26 @@ export default async function orderPlacedHandler({
   const logger = container.resolve("logger")
   const query = container.resolve("query")
 
-  const webhookUrl = process.env.N8N_ORDER_WEBHOOK_URL
+  // Step 1: Generate invoice
+  let invoiceResult: { invoice_id: string; invoice_number: string; file_url: string } | null = null
+  try {
+    const { result } = await generateInvoiceWorkflow(container).run({
+      input: { order_id: data.id },
+    })
+    invoiceResult = result
+    logger.info(`Invoice ${result.invoice_number} generated for order ${data.id}`)
+  } catch (err) {
+    logger.error(`Failed to generate invoice for order ${data.id}`, err)
+  }
 
+  // Step 2: Send order + invoice data to n8n webhook
+  const webhookUrl = process.env.N8N_ORDER_WEBHOOK_URL
   if (!webhookUrl) {
     logger.warn("N8N_ORDER_WEBHOOK_URL not set — skipping order webhook")
     return
   }
 
   try {
-    // Retrieve full order details via Query
     const { data: [order] } = await query.graph({
       entity: "order",
       fields: [
@@ -27,26 +39,21 @@ export default async function orderPlacedHandler({
         "created_at",
         "email",
         "currency_code",
-        // Totals
         "total",
         "subtotal",
         "tax_total",
         "discount_total",
         "shipping_total",
         "item_total",
-        // Items with product info
         "items.*",
         "items.variant.*",
         "items.variant.product.*",
-        // Customer
         "customer.id",
         "customer.first_name",
         "customer.last_name",
         "customer.email",
-        // Addresses
         "shipping_address.*",
         "billing_address.*",
-        // Metadata (customer_type, vat_id etc.)
         "metadata",
       ],
       filters: {
@@ -67,6 +74,13 @@ export default async function orderPlacedHandler({
       body: JSON.stringify({
         event: "order.placed",
         order,
+        // Include invoice data so n8n can attach PDF to confirmation email
+        invoice: invoiceResult
+          ? {
+              invoice_number: invoiceResult.invoice_number,
+              file_url: invoiceResult.file_url,
+            }
+          : null,
       }),
     })
 
