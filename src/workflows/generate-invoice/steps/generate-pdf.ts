@@ -44,8 +44,10 @@ export const generatePdfStep = createStep(
         email: invoice.customer_email,
         address: invoice.customer_address,
         vat_id: invoice.customer_vat_id || undefined,
+        customer_id: invoice.order_id?.replace("order_", "KD-") || undefined,
       },
       items: invoice.items.map((item: any) => ({
+        sku: item.sku || undefined,
         title: item.title,
         quantity: item.quantity,
         unit_price: item.unit_price,

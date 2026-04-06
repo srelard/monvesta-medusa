@@ -63,6 +63,7 @@ export const createInvoiceStep = createStep(
     if (order.items?.length) {
       await invoiceService.createInvoiceItems(
         order.items.map((item: any) => ({
+          sku: item.variant?.sku || null,
           title:
             item.variant?.product?.title
               ? `${item.variant.product.title}${item.variant.title && item.variant.title !== "Default" ? ` – ${item.variant.title}` : ""}`

@@ -3,6 +3,7 @@ import { Invoice } from "./invoice"
 
 export const InvoiceItem = model.define("invoice_item", {
   id: model.id().primaryKey(),
+  sku: model.text().nullable(),
   title: model.text(),
   quantity: model.number(),
   unit_price: model.float(),

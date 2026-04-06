@@ -43,10 +43,12 @@ export type InvoicePdfData = {
     email: string
     address: string
     vat_id?: string
+    customer_id?: string
   }
   // Items
   items: Array<{
     title: string
+    sku?: string
     quantity: number
     unit_price: number
     total: number
@@ -87,62 +89,86 @@ export function buildInvoiceDocDefinition(data: InvoicePdfData): TDocumentDefini
 
   // Item rows for table
   const itemRows = items.map((item, i) => [
-    { text: String(i + 1), alignment: "center" as const },
-    { text: item.title },
-    { text: String(item.quantity), alignment: "center" as const },
-    { text: formatCurrency(item.unit_price, cur), alignment: "right" as const },
-    { text: formatCurrency(item.total, cur), alignment: "right" as const },
+    { text: String(i + 1), alignment: "center" as const, fontSize: 9 },
+    { text: item.sku || "", fontSize: 8, color: "#666666" },
+    { text: item.title, fontSize: 9 },
+    { text: String(item.quantity), alignment: "center" as const, fontSize: 9 },
+    { text: formatCurrency(item.unit_price, cur), alignment: "right" as const, fontSize: 9 },
+    { text: formatCurrency(item.total, cur), alignment: "right" as const, fontSize: 9 },
   ])
+
+  // DIN 5008 fold marks (Y positions in mm from top)
+  const FOLD_MARK_TOP = 87 // mm — upper fold (DIN 5008)
+  const FOLD_MARK_BOTTOM = 192 // mm — lower fold (DIN 5008)
+  const PUNCH_MARK = 148.5 // mm — hole punch mark
+
+  const mmToPt = (mm: number) => mm * 2.835
 
   const docDefinition: TDocumentDefinitions = {
     pageSize: "A4",
     pageMargins: [50, 60, 50, 100],
 
-    footer: (currentPage: number, pageCount: number) => ({
-      columns: [
-        {
-          width: "*",
-          text: [
-            { text: `${company.name}\n`, bold: true, fontSize: 7 },
-            { text: `${company.address}, ${company.postal_code} ${company.city}\n`, fontSize: 7 },
-            { text: `${company.email}`, fontSize: 7 },
-            company.phone ? { text: ` · ${company.phone}`, fontSize: 7 } : { text: "" },
-          ],
-        },
-        {
-          width: "*",
-          text: [
-            { text: "Bankverbindung\n", bold: true, fontSize: 7 },
-            { text: `${company.bank_name}\n`, fontSize: 7 },
-            { text: `IBAN: ${company.bank_iban}\n`, fontSize: 7 },
-            { text: `BIC: ${company.bank_bic}`, fontSize: 7 },
-          ],
-        },
-        {
-          width: "*",
-          text: [
-            { text: `USt-IdNr.: ${company.vat_id}\n`, fontSize: 7 },
-            company.registration
-              ? { text: `${company.registration}\n`, fontSize: 7 }
-              : { text: "" },
-            { text: `Geschäftsführer: ${company.managing_director}\n`, fontSize: 7 },
-            { text: `Seite ${currentPage}/${pageCount}`, fontSize: 7 },
-          ],
-        },
-      ],
-      margin: [50, 10, 50, 0],
-    }),
+    // Fold marks + punch mark (DIN 5008)
+    background: [
+      // Upper fold mark
+      { canvas: [{ type: "line", x1: 5, y1: mmToPt(FOLD_MARK_TOP), x2: 20, y2: mmToPt(FOLD_MARK_TOP), lineWidth: 0.5, lineColor: "#999999" }] },
+      // Punch mark (center)
+      { canvas: [{ type: "line", x1: 5, y1: mmToPt(PUNCH_MARK), x2: 15, y2: mmToPt(PUNCH_MARK), lineWidth: 0.5, lineColor: "#999999" }] },
+      // Lower fold mark
+      { canvas: [{ type: "line", x1: 5, y1: mmToPt(FOLD_MARK_BOTTOM), x2: 20, y2: mmToPt(FOLD_MARK_BOTTOM), lineWidth: 0.5, lineColor: "#999999" }] },
+    ],
+
+    footer: (currentPage: number, pageCount: number) => ([
+      // Separator line above footer
+      { canvas: [{ type: "line", x1: 50, y1: 0, x2: 545, y2: 0, lineWidth: 0.5, lineColor: "#cccccc" }], margin: [0, 0, 0, 8] as [number, number, number, number] },
+      {
+        columns: [
+          {
+            width: "*",
+            text: [
+              { text: `${company.name}\n`, bold: true, fontSize: 7 },
+              { text: `${company.address}, ${company.postal_code} ${company.city}\n`, fontSize: 7 },
+              { text: `${company.email}`, fontSize: 7 },
+              company.phone ? { text: ` · ${company.phone}`, fontSize: 7 } : { text: "" },
+            ],
+          },
+          {
+            width: "*",
+            text: [
+              { text: "Bankverbindung\n", bold: true, fontSize: 7 },
+              { text: `${company.bank_name}\n`, fontSize: 7 },
+              { text: `IBAN: ${company.bank_iban}\n`, fontSize: 7 },
+              { text: `BIC: ${company.bank_bic}`, fontSize: 7 },
+            ],
+          },
+          {
+            width: "*",
+            text: [
+              { text: `USt-IdNr.: ${company.vat_id}\n`, fontSize: 7 },
+              company.registration
+                ? { text: `${company.registration}\n`, fontSize: 7 }
+                : { text: "" },
+              { text: `Geschäftsführer: ${company.managing_director}\n`, fontSize: 7 },
+              { text: `Seite ${currentPage}/${pageCount}`, fontSize: 7 },
+            ],
+          },
+        ],
+        margin: [50, 0, 50, 0],
+      },
+    ]),
 
     content: [
       // Company sender line (small, above recipient)
       {
         text: companyOneLiner,
         fontSize: 7,
-        color: "#666666",
-        margin: [0, 0, 0, 5] as [number, number, number, number],
+        color: "#999999",
+        decoration: "underline" as const,
+        decorationColor: "#cccccc",
+        margin: [0, 15, 0, 3] as [number, number, number, number],
       },
 
-      // Recipient address block
+      // Recipient address block (Fenster-Format)
       {
         text: [
           customer.name + "\n",
@@ -150,47 +176,66 @@ export function buildInvoiceDocDefinition(data: InvoicePdfData): TDocumentDefini
           customer.vat_id ? `\nUSt-IdNr.: ${customer.vat_id}` : "",
         ],
         fontSize: 10,
-        margin: [0, 0, 0, 30] as [number, number, number, number],
+        lineHeight: 1.4,
+        margin: [0, 0, 0, 40] as [number, number, number, number],
       },
 
-      // Invoice title + meta
+      // Invoice meta (right-aligned box)
       {
         columns: [
+          { width: "*", text: "" },
           {
-            width: "*",
-            text: `Rechnung ${invoice_number}`,
-            fontSize: 18,
-            bold: true,
-          },
-          {
-            width: "auto",
-            alignment: "right" as const,
-            text: [
-              { text: "Rechnungsnummer: ", fontSize: 9, color: "#666666" },
-              { text: `${invoice_number}\n`, fontSize: 9 },
-              { text: "Rechnungsdatum: ", fontSize: 9, color: "#666666" },
-              { text: `${formatDate(issued_at)}\n`, fontSize: 9 },
-              { text: "Leistungsdatum: ", fontSize: 9, color: "#666666" },
-              { text: formatDate(issued_at), fontSize: 9 },
-            ],
+            width: 220,
+            table: {
+              widths: [90, "*"],
+              body: [
+                [
+                  { text: "Rechnungsnr.:", fontSize: 9, color: "#666666", alignment: "right" as const, border: [false, false, false, false] },
+                  { text: invoice_number, fontSize: 9, bold: true, alignment: "right" as const, border: [false, false, false, false] },
+                ],
+                [
+                  { text: "Rechnungsdatum:", fontSize: 9, color: "#666666", alignment: "right" as const, border: [false, false, false, false] },
+                  { text: formatDate(issued_at), fontSize: 9, alignment: "right" as const, border: [false, false, false, false] },
+                ],
+                [
+                  { text: "Leistungsdatum:", fontSize: 9, color: "#666666", alignment: "right" as const, border: [false, false, false, false] },
+                  { text: formatDate(issued_at), fontSize: 9, alignment: "right" as const, border: [false, false, false, false] },
+                ],
+                ...(customer.customer_id ? [[
+                  { text: "Kundennr.:", fontSize: 9, color: "#666666", alignment: "right" as const, border: [false, false, false, false] },
+                  { text: customer.customer_id, fontSize: 9, alignment: "right" as const, border: [false, false, false, false] },
+                ]] : []),
+              ],
+            },
+            layout: "noBorders",
           },
         ],
-        margin: [0, 0, 0, 20] as [number, number, number, number],
+        margin: [0, 0, 0, 8] as [number, number, number, number],
+      },
+
+      // Invoice title
+      {
+        text: `Rechnung ${invoice_number}`,
+        fontSize: 14,
+        bold: true,
+        color: "#333333",
+        margin: [0, 0, 0, 16] as [number, number, number, number],
       },
 
       // Items table
       {
         table: {
           headerRows: 1,
-          widths: [30, "*", 40, 80, 80],
+          widths: [25, 50, "*", 35, 70, 70],
           body: [
-            // Header
+            // Header with background
             [
-              { text: "Pos.", bold: true, fontSize: 9 },
-              { text: "Bezeichnung", bold: true, fontSize: 9 },
-              { text: "Menge", bold: true, fontSize: 9, alignment: "center" as const },
-              { text: "Einzelpreis", bold: true, fontSize: 9, alignment: "right" as const },
-              { text: "Gesamt", bold: true, fontSize: 9, alignment: "right" as const },
+              { text: "Pos.", bold: true, fontSize: 8, color: "#ffffff", fillColor: "#333333" },
+              { text: "Art.-Nr.", bold: true, fontSize: 8, color: "#ffffff", fillColor: "#333333" },
+              { text: "Bezeichnung", bold: true, fontSize: 8, color: "#ffffff", fillColor: "#333333" },
+              { text: "Menge", bold: true, fontSize: 8, alignment: "center" as const, color: "#ffffff", fillColor: "#333333" },
+              { text: "Einzelpreis", bold: true, fontSize: 8, alignment: "right" as const, color: "#ffffff", fillColor: "#333333" },
+              { text: "Gesamt", bold: true, fontSize: 8, alignment: "right" as const, color: "#ffffff", fillColor: "#333333" },
             ],
             // Items
             ...itemRows,
@@ -198,11 +243,13 @@ export function buildInvoiceDocDefinition(data: InvoicePdfData): TDocumentDefini
         },
         layout: {
           hLineWidth: (i: number, node: any) =>
-            i === 0 || i === 1 || i === node.table.body.length ? 1 : 0,
+            i === 0 || i === 1 || i === node.table.body.length ? 0.5 : 0,
           vLineWidth: () => 0,
-          hLineColor: () => "#cccccc",
+          hLineColor: () => "#dddddd",
           paddingTop: () => 6,
           paddingBottom: () => 6,
+          paddingLeft: () => 4,
+          paddingRight: () => 4,
         },
         margin: [0, 0, 0, 20] as [number, number, number, number],
       },
@@ -212,49 +259,62 @@ export function buildInvoiceDocDefinition(data: InvoicePdfData): TDocumentDefini
         columns: [
           { width: "*", text: "" },
           {
-            width: 200,
+            width: 220,
             table: {
               widths: ["*", 80],
               body: [
                 [
-                  { text: "Nettobetrag", fontSize: 9 },
-                  { text: formatCurrency(data.subtotal, cur), alignment: "right" as const, fontSize: 9 },
+                  { text: "Nettobetrag", fontSize: 9, border: [false, false, false, false] },
+                  { text: formatCurrency(data.subtotal, cur), alignment: "right" as const, fontSize: 9, border: [false, false, false, false] },
                 ],
                 ...(isReverseCharge
                   ? [
                       [
-                        { text: "USt. (Reverse Charge)", fontSize: 9, color: "#666666" },
-                        { text: formatCurrency(0, cur), alignment: "right" as const, fontSize: 9, color: "#666666" },
+                        { text: "USt. (Reverse Charge)", fontSize: 9, color: "#666666", border: [false, false, false, false] },
+                        { text: formatCurrency(0, cur), alignment: "right" as const, fontSize: 9, color: "#666666", border: [false, false, false, false] },
                       ],
                     ]
                   : [
                       [
-                        { text: `USt. ${data.tax_rate}%`, fontSize: 9 },
-                        { text: formatCurrency(data.tax_total, cur), alignment: "right" as const, fontSize: 9 },
+                        { text: `USt. ${data.tax_rate}%`, fontSize: 9, border: [false, false, false, true] },
+                        { text: formatCurrency(data.tax_total, cur), alignment: "right" as const, fontSize: 9, border: [false, false, false, true] },
                       ],
                     ]),
                 [
-                  { text: "Gesamtbetrag", fontSize: 11, bold: true },
+                  { text: "Gesamtbetrag", fontSize: 11, bold: true, fillColor: "#f2f2f2", color: "#222222", border: [false, false, false, false] },
                   {
                     text: formatCurrency(data.total, cur),
                     alignment: "right" as const,
                     fontSize: 11,
                     bold: true,
+                    fillColor: "#f2f2f2",
+                    color: "#222222",
+                    border: [false, false, false, false],
                   },
                 ],
               ],
             },
             layout: {
-              hLineWidth: (i: number, node: any) =>
-                i === node.table.body.length - 1 || i === node.table.body.length ? 1 : 0,
+              hLineWidth: (i: number) => i === 0 ? 0 : 0.5,
               vLineWidth: () => 0,
-              hLineColor: () => "#333333",
-              paddingTop: () => 4,
-              paddingBottom: () => 4,
+              hLineColor: () => "#cccccc",
+              paddingTop: () => 5,
+              paddingBottom: () => 5,
+              paddingLeft: () => 4,
+              paddingRight: () => 4,
             },
           },
         ],
-        margin: [0, 0, 0, 20] as [number, number, number, number],
+        margin: [0, 0, 0, 25] as [number, number, number, number],
+      },
+
+      // Payment terms
+      {
+        text: "Bereits bezahlt per Online-Zahlung. Vielen Dank!",
+        fontSize: 9,
+        bold: true,
+        color: "#333333",
+        margin: [0, 0, 0, 10] as [number, number, number, number],
       },
 
       // Reverse charge notice
@@ -276,8 +336,9 @@ export function buildInvoiceDocDefinition(data: InvoicePdfData): TDocumentDefini
             {
               text: company.footer_text,
               fontSize: 9,
-              color: "#444444",
-              margin: [0, 10, 0, 0] as [number, number, number, number],
+              color: "#888888",
+              italics: true,
+              margin: [0, 5, 0, 0] as [number, number, number, number],
             },
           ]
         : []),
