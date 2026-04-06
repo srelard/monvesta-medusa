@@ -9,9 +9,10 @@ const RELATIONS = [
 
 const sortByOrder = (a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
 
-// Simple in-memory cache (reset on server restart)
-let contentCache: Map<string, { data: any; timestamp: number }> = new Map()
-const CACHE_TTL = 60_000 // 60 seconds
+// Simple in-memory cache (reset on server restart or admin save)
+// Exported so admin route can invalidate
+export const contentCache: Map<string, { data: any; timestamp: number }> = new Map()
+const CACHE_TTL = 86_400_000 // 24 hours — invalidated on admin save
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params

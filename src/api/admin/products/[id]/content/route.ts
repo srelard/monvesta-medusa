@@ -5,6 +5,7 @@ import type {
 import { Modules } from "@medusajs/framework/utils"
 import { PRODUCT_CONTENT_MODULE } from "../../../../../modules/product-content"
 import ProductContentModuleService from "../../../../../modules/product-content/service"
+import { contentCache } from "../../../../../api/store/products/[id]/content/route"
 
 const RELATIONS = [
   "trust_badges", "stats", "features", "course_modules",
@@ -127,6 +128,9 @@ export const POST = async (
       input.faqs.map((f: any, i: number) => ({ question: f.question, answer: f.answer, sort_order: i, content_id: contentId }))
     ),
   ].filter(Boolean))
+
+  // Invalidate store cache for this product
+  contentCache.delete(id)
 
   // Return updated content
   const result = await service.retrieveProductContent(contentId, { relations: RELATIONS })
