@@ -1,52 +1,32 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { PRODUCT_CONTENT_MODULE } from "../../../../../modules/product-content"
 import ProductContentModuleService from "../../../../../modules/product-content/service"
+import {
+  getCachedProductContent,
+  setCachedProductContent,
+} from "../../../../../lib/product-content-cache"
 
-const RELATIONS = [
-  "trust_badges", "stats", "features", "course_modules",
-  "audience", "testimonials", "faqs",
-]
-
-const sortByOrder = (a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
-
-// Simple in-memory cache (reset on server restart or admin save)
-// Exported so admin route can invalidate
-export const contentCache: Map<string, { data: any; timestamp: number }> = new Map()
-const CACHE_TTL = 86_400_000 // 24 hours — invalidated on admin save
-
+/**
+ * GET /store/products/:id/content
+ * Public marketing content for a product detail page.
+ * Cached (Redis-backed in production); invalidated on admin save.
+ */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
-  const start = Date.now()
 
-  // Check cache first
-  const cached = contentCache.get(id)
-  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    console.log(`[Content API] Cache hit for ${id} (${Date.now() - start}ms)`)
-    return res.json({ content: cached.data })
+  const cached = await getCachedProductContent(req.scope, id)
+  if (cached) {
+    return res.json({ content: cached.content })
   }
 
-  const service: ProductContentModuleService = req.scope.resolve(PRODUCT_CONTENT_MODULE)
-
-  const t1 = Date.now()
-  const contents = await service.listProductContents(
-    { product_id: id },
-    { relations: RELATIONS }
+  const service: ProductContentModuleService = req.scope.resolve(
+    PRODUCT_CONTENT_MODULE
   )
-  console.log(`[Content API] DB query: ${Date.now() - t1}ms`)
 
-  if (!contents.length) {
-    contentCache.set(id, { data: null, timestamp: Date.now() })
-    return res.json({ content: null })
-  }
+  const content = await service.getContentByProductId(id)
 
-  const content = contents[0]
-  for (const rel of RELATIONS) {
-    content[rel]?.sort(sortByOrder)
-  }
+  // Cache misses too (content === null) so unknown products don't hit the DB
+  await setCachedProductContent(req.scope, id, content)
 
-  // Cache the result
-  contentCache.set(id, { data: content, timestamp: Date.now() })
-
-  console.log(`[Content API] Total: ${Date.now() - start}ms`)
   res.json({ content })
 }
