@@ -61,6 +61,7 @@ class PayPalPaymentProviderService extends AbstractPaymentProvider<Options> {
   protected client_: Client
   protected ordersController_: OrdersController
   protected paymentsController_: PaymentsController
+  private accessTokenCache_: { token: string; expiresAt: number } | null = null
 
   constructor(container: InjectedDependencies, options: Options) {
     super(container, options)
@@ -563,7 +564,15 @@ class PayPalPaymentProviderService extends AbstractPaymentProvider<Options> {
   ): Promise<boolean> {
     try {
       if (!this.options_.webhook_id) {
-        this.logger_.warn("PayPal webhook ID not set, skipping verification")
+        // Fail closed in production: an unverified payment webhook could be
+        // forged. In sandbox we allow it for local development convenience.
+        if (this.options_.environment === "production") {
+          this.logger_.error(
+            "PAYPAL_WEBHOOK_ID not set — rejecting webhook (verification is mandatory in production)"
+          )
+          return false
+        }
+        this.logger_.warn("PayPal webhook ID not set, skipping verification (sandbox only)")
         return true
       }
 
@@ -580,38 +589,8 @@ class PayPalPaymentProviderService extends AbstractPaymentProvider<Options> {
         )
       }
 
-      const baseUrl =
-        this.options_.environment === "production"
-          ? "https://api.paypal.com"
-          : "https://api.sandbox.paypal.com"
-
-      const authResponse = await fetch(`${baseUrl}/v1/oauth2/token`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Authorization: `Basic ${Buffer.from(
-            `${this.options_.client_id}:${this.options_.client_secret}`
-          ).toString("base64")}`,
-        },
-        body: "grant_type=client_credentials",
-      })
-
-      if (!authResponse.ok) {
-        throw new MedusaError(
-          MedusaError.Types.UNEXPECTED_STATE,
-          "Failed to get access token for webhook verification"
-        )
-      }
-
-      const authData = await authResponse.json()
-      const accessToken = authData.access_token
-
-      if (!accessToken) {
-        throw new MedusaError(
-          MedusaError.Types.UNEXPECTED_STATE,
-          "Access token not received from PayPal"
-        )
-      }
+      const baseUrl = this.getApiBaseUrl()
+      const accessToken = await this.getAccessToken()
 
       let webhookEvent: any
       if (rawBody) {
@@ -659,6 +638,59 @@ class PayPalPaymentProviderService extends AbstractPaymentProvider<Options> {
       this.logger_.error("PayPal verifyWebhookSignature error:", e)
       return false
     }
+  }
+
+  private getApiBaseUrl(): string {
+    return this.options_.environment === "production"
+      ? "https://api.paypal.com"
+      : "https://api.sandbox.paypal.com"
+  }
+
+  /**
+   * Get a client-credentials access token, cached until shortly before expiry
+   * so webhook verification doesn't mint a new token on every event.
+   */
+  private async getAccessToken(): Promise<string> {
+    if (this.accessTokenCache_ && Date.now() < this.accessTokenCache_.expiresAt) {
+      return this.accessTokenCache_.token
+    }
+
+    const authResponse = await fetch(`${this.getApiBaseUrl()}/v1/oauth2/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${Buffer.from(
+          `${this.options_.client_id}:${this.options_.client_secret}`
+        ).toString("base64")}`,
+      },
+      body: "grant_type=client_credentials",
+    })
+
+    if (!authResponse.ok) {
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        "Failed to get access token for webhook verification"
+      )
+    }
+
+    const authData = await authResponse.json()
+    const accessToken = authData.access_token
+
+    if (!accessToken) {
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        "Access token not received from PayPal"
+      )
+    }
+
+    // Refresh 60s before PayPal's reported expiry (default ~9h)
+    const expiresInMs = (Number(authData.expires_in) || 300) * 1000
+    this.accessTokenCache_ = {
+      token: accessToken,
+      expiresAt: Date.now() + expiresInMs - 60_000,
+    }
+
+    return accessToken
   }
 }
 
