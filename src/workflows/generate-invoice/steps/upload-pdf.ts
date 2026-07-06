@@ -13,10 +13,11 @@ type UploadPdfInput = {
 export const uploadPdfStep = createStep(
   "upload-pdf",
   async ({ invoice_id, pdf_buffer_base64, filename }: UploadPdfInput, { container }) => {
+    const logger = container.resolve("logger")
     const fileService = container.resolve(Modules.FILE)
     const invoiceService: InvoiceModuleService = container.resolve(INVOICE_MODULE)
 
-    console.log(`[Invoice] Step: upload-pdf for invoice ${invoice_id}, filename: ${filename}`)
+    logger.info(`[Invoice] Step: upload-pdf for invoice ${invoice_id}, filename: ${filename}`)
     // Upload PDF via File Module (S3/local)
     const [file] = await fileService.createFiles([
       {

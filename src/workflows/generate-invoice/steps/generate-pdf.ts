@@ -44,6 +44,7 @@ export const generatePdfStep = createStep(
         email: invoice.customer_email,
         address: invoice.customer_address,
         vat_id: invoice.customer_vat_id || undefined,
+        country_code: invoice.customer_country_code || undefined,
         customer_id: invoice.order_id ? `KD-${invoice.order_id.slice(-8).toUpperCase()}` : undefined,
       },
       items: invoice.items.map((item: any) => ({

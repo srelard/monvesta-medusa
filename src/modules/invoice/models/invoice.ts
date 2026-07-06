@@ -19,6 +19,7 @@ export const Invoice = model.define("invoice", {
   customer_name: model.text(),
   customer_address: model.text(),
   customer_vat_id: model.text().nullable(),
+  customer_country_code: model.text().nullable(),
   // Amounts
   subtotal: model.float(),
   tax_total: model.float(),

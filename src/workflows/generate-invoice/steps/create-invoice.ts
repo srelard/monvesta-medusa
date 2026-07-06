@@ -11,11 +11,10 @@ type CreateInvoiceInput = {
 export const createInvoiceStep = createStep(
   "create-invoice",
   async ({ order, config }: CreateInvoiceInput, { container }) => {
-    console.log(`[Invoice] Step: create-invoice for order ${order?.id}`)
-    const invoiceService: InvoiceModuleService = container.resolve(INVOICE_MODULE)
+    const logger = container.resolve("logger")
+    logger.info(`[Invoice] Step: create-invoice for order ${order?.id}`)
 
-    const prefix = config.invoice_prefix || "RE"
-    const { year, display_id, invoice_number } = await invoiceService.getNextInvoiceNumber(prefix)
+    const invoiceService: InvoiceModuleService = container.resolve(INVOICE_MODULE)
 
     // Build customer address from shipping/billing address
     const addr = order.shipping_address || order.billing_address || {}
@@ -40,24 +39,25 @@ export const createInvoiceStep = createStep(
     const total = Number(order.total) || 0
     const taxRate = subtotal > 0 ? (taxTotal / subtotal) * 100 : config.default_tax_rate || 19
 
-    // Create invoice record
-    const invoice = await invoiceService.createInvoices({
-      year,
-      display_id,
-      invoice_number,
-      order_id: order.id,
-      issued_at: new Date(),
-      customer_email: order.email,
-      customer_name: customerName,
-      customer_address: customerAddress,
-      customer_vat_id: customerVatId,
-      subtotal,
-      tax_total: taxTotal,
-      total,
-      tax_rate: Math.round(taxRate * 100) / 100,
-      currency_code: order.currency_code || "eur",
-      status: InvoiceStatus.PENDING,
-    })
+    // Create invoice record (retries numbering on concurrent inserts)
+    const invoice = await invoiceService.createInvoiceWithNextNumber(
+      config.invoice_prefix || "RE",
+      {
+        order_id: order.id,
+        issued_at: new Date(),
+        customer_email: order.email,
+        customer_name: customerName,
+        customer_address: customerAddress,
+        customer_vat_id: customerVatId,
+        customer_country_code: addr.country_code?.toLowerCase() || null,
+        subtotal,
+        tax_total: taxTotal,
+        total,
+        tax_rate: Math.round(taxRate * 100) / 100,
+        currency_code: order.currency_code || "eur",
+        status: InvoiceStatus.PENDING,
+      }
+    )
 
     // Create invoice items from order items
     if (order.items?.length) {

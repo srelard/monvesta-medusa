@@ -43,6 +43,7 @@ export type InvoicePdfData = {
     email: string
     address: string
     vat_id?: string
+    country_code?: string
     customer_id?: string
   }
   // Items
@@ -79,14 +80,42 @@ function formatDate(date: Date | string): string {
   }).format(d)
 }
 
+// EU member states (ISO 3166-1 alpha-2, lowercase) plus the VAT-specific
+// prefixes "el" (Greece) and "xi" (Northern Ireland, EU for VAT purposes).
+const EU_VAT_COUNTRIES = new Set([
+  "at", "be", "bg", "hr", "cy", "cz", "dk", "ee", "fi", "fr", "de", "gr",
+  "hu", "ie", "it", "lv", "lt", "lu", "mt", "nl", "pl", "pt", "ro", "sk",
+  "si", "es", "se", "el", "xi",
+])
+
+/**
+ * §13b UStG reverse charge applies to B2B customers (VAT ID present) in an
+ * EU country other than Germany. When no country is stored (legacy invoices),
+ * the country is inferred from the VAT ID prefix (e.g. "ATU..." → "at").
+ */
+export function isReverseChargeCustomer(customer: {
+  vat_id?: string
+  country_code?: string
+}): boolean {
+  if (!customer.vat_id) return false
+
+  let country = customer.country_code?.toLowerCase()
+  if (!country) {
+    const prefix = customer.vat_id.trim().slice(0, 2)
+    country = /^[a-zA-Z]{2}$/.test(prefix) ? prefix.toLowerCase() : undefined
+  }
+
+  return !!country && country !== "de" && EU_VAT_COUNTRIES.has(country)
+}
+
 export function buildInvoiceDocDefinition(data: InvoicePdfData): TDocumentDefinitions {
   const { company, customer, items, invoice_number, issued_at } = data
   const cur = data.currency_code
 
   const companyOneLiner = `${company.name} · ${company.address} · ${company.postal_code} ${company.city}`
 
-  // Check if reverse charge applies (EU customer with VAT ID)
-  const isReverseCharge = !!customer.vat_id
+  // Check if reverse charge applies (EU non-DE business customer with VAT ID)
+  const isReverseCharge = isReverseChargeCustomer(customer)
 
   // Item rows for table
   const itemRows = items.map((item, i) => [
@@ -361,17 +390,15 @@ export function buildInvoiceDocDefinition(data: InvoicePdfData): TDocumentDefini
  * Generate a PDF buffer from invoice data.
  */
 export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
-  console.log(`[Invoice PDF] Generating PDF for ${data.invoice_number}...`)
-
-  // Fetch logo if URL provided
-  if (data.company.logo_url && !data._logoBase64) {
+  // Fetch logo if URL provided (non-fatal — the PDF renders without it)
+  let logoBase64 = data._logoBase64
+  if (data.company.logo_url && !logoBase64) {
     try {
       const res = await fetch(data.company.logo_url)
       if (res.ok) {
         const buf = Buffer.from(await res.arrayBuffer())
         const mime = res.headers.get("content-type") || "image/png"
-        data._logoBase64 = `data:${mime};base64,${buf.toString("base64")}`
-        console.log(`[Invoice PDF] Logo loaded (${buf.length} bytes)`)
+        logoBase64 = `data:${mime};base64,${buf.toString("base64")}`
       }
     } catch (err) {
       console.warn(`[Invoice PDF] Could not load logo:`, err)
@@ -379,14 +406,14 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> 
   }
 
   const printer = new PdfPrinter(fonts)
-  const docDefinition = buildInvoiceDocDefinition(data)
+  const docDefinition = buildInvoiceDocDefinition({ ...data, _logoBase64: logoBase64 })
   const pdfDoc = printer.createPdfKitDocument(docDefinition)
 
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     pdfDoc.on("data", (chunk: Buffer) => chunks.push(chunk))
-    pdfDoc.on("end", () => { console.log(`[Invoice PDF] Done, ${Buffer.concat(chunks).length} bytes`); resolve(Buffer.concat(chunks)) })
-    pdfDoc.on("error", (err: any) => { console.error(`[Invoice PDF] Error:`, err); reject(err) })
+    pdfDoc.on("end", () => resolve(Buffer.concat(chunks)))
+    pdfDoc.on("error", (err: unknown) => reject(err))
     pdfDoc.end()
   })
 }

@@ -27,7 +27,7 @@ export const POST = async (
   res: MedusaResponse
 ) => {
   const invoiceService: InvoiceModuleService = req.scope.resolve(INVOICE_MODULE)
-  const input = req.body as Record<string, unknown>
+  const input = (req.validatedBody ?? req.body) as Record<string, unknown>
 
   // Get or create config
   const existing = await invoiceService.getOrCreateConfig()

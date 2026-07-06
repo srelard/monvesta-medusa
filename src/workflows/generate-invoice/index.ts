@@ -10,6 +10,7 @@ import { createInvoiceStep } from "./steps/create-invoice"
 import { generatePdfStep } from "./steps/generate-pdf"
 import { uploadPdfStep } from "./steps/upload-pdf"
 import { INVOICE_MODULE } from "../../modules/invoice"
+import { DEFAULT_INVOICE_CONFIG } from "../../modules/invoice/constants"
 
 type GenerateInvoiceInput = {
   order_id: string
@@ -48,26 +49,9 @@ export const generateInvoiceWorkflow = createWorkflow(
     }).config({ name: "fetch-invoice-config" })
 
     // Prepare config (use first config or defaults)
-    const config = transform({ configs }, ({ configs }) => {
-      if (configs?.length > 0) return configs[0]
-      return {
-        company_name: "Monvesta GmbH",
-        company_address: "Musterstraße 1",
-        company_city: "Berlin",
-        company_postal_code: "10115",
-        company_country: "Deutschland",
-        company_email: "info@monvesta.de",
-        company_vat_id: "DE123456789",
-        managing_director: "Max Mustermann",
-        bank_name: "Deutsche Bank",
-        bank_iban: "DE89 3704 0044 0532 0130 00",
-        bank_bic: "COBADEFFXXX",
-        invoice_prefix: "RE",
-        default_tax_rate: 19,
-        footer_text:
-          "Vielen Dank für Ihr Vertrauen. Diese Rechnung wurde elektronisch erstellt und ist ohne Unterschrift gültig.",
-      }
-    })
+    const config = transform({ configs }, ({ configs }) =>
+      configs?.length > 0 ? configs[0] : { ...DEFAULT_INVOICE_CONFIG }
+    )
 
     const order = transform({ orders }, ({ orders }) => orders[0])
 

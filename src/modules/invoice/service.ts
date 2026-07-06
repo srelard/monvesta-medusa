@@ -2,6 +2,17 @@ import { MedusaService } from "@medusajs/framework/utils"
 import { Invoice } from "./models/invoice"
 import { InvoiceItem } from "./models/invoice-item"
 import { InvoiceConfig } from "./models/invoice-config"
+import { DEFAULT_INVOICE_CONFIG } from "./constants"
+
+const MAX_NUMBERING_ATTEMPTS = 5
+
+function isUniqueViolation(error: any): boolean {
+  return (
+    error?.code === "23505" ||
+    error?.name === "UniqueConstraintViolationException" ||
+    /unique/i.test(error?.message ?? "")
+  )
+}
 
 class InvoiceModuleService extends MedusaService({
   Invoice,
@@ -29,6 +40,39 @@ class InvoiceModuleService extends MedusaService({
   }
 
   /**
+   * Create an invoice with the next sequential number.
+   *
+   * Numbering is read-then-insert, so two concurrent order placements can
+   * compute the same display_id. The (year, display_id) unique index rejects
+   * the loser; we retry with a fresh number instead of failing the workflow.
+   */
+  async createInvoiceWithNextNumber(
+    prefix: string,
+    data: Record<string, unknown>
+  ) {
+    let lastError: unknown
+
+    for (let attempt = 0; attempt < MAX_NUMBERING_ATTEMPTS; attempt++) {
+      const { year, display_id, invoice_number } =
+        await this.getNextInvoiceNumber(prefix)
+
+      try {
+        return await this.createInvoices({
+          ...data,
+          year,
+          display_id,
+          invoice_number,
+        })
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error
+        lastError = error
+      }
+    }
+
+    throw lastError
+  }
+
+  /**
    * Get or create the singleton invoice config with defaults.
    */
   async getOrCreateConfig(): Promise<any> {
@@ -37,26 +81,7 @@ class InvoiceModuleService extends MedusaService({
       return configs[0]
     }
 
-    // Create default config with Lorem Ipsum placeholder data
-    return await this.createInvoiceConfigs({
-      company_name: "Monvesta GmbH",
-      company_address: "Musterstraße 1",
-      company_city: "Berlin",
-      company_postal_code: "10115",
-      company_country: "Deutschland",
-      company_email: "info@monvesta.de",
-      company_phone: "+49 30 12345678",
-      company_vat_id: "DE123456789",
-      company_registration: "HRB 12345 B",
-      managing_director: "Max Mustermann",
-      bank_name: "Deutsche Bank",
-      bank_iban: "DE89 3704 0044 0532 0130 00",
-      bank_bic: "COBADEFFXXX",
-      invoice_prefix: "RE",
-      default_tax_rate: 19,
-      footer_text:
-        "Vielen Dank für Ihr Vertrauen. Diese Rechnung wurde elektronisch erstellt und ist ohne Unterschrift gültig.",
-    })
+    return await this.createInvoiceConfigs({ ...DEFAULT_INVOICE_CONFIG })
   }
 }
 
